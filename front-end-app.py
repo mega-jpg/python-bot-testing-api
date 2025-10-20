@@ -7,7 +7,7 @@ from flask import Flask, render_template, request, jsonify
 import requests
 
 app = Flask(__name__)
-API_URL = "http://localhost:8000/users"
+API_URL = "http://localhost:8001/users"
 
 # API proxy routes
 @app.route('/')
@@ -49,5 +49,5 @@ def delete_user(username):
 
 if __name__ == '__main__':
     print("🚀 Starting KJC Testing API Event...")
-    print("📖 Frontend: http://localhost:8000")
-    app.run(debug=True, port=5000)
+    print("📖 Frontend: http://localhost:8002")
+    app.run(debug=True, port=8002)

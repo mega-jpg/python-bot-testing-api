@@ -154,9 +154,9 @@ python main_fastapi.py
 Nếu thấy output như này là OK:
 ```
 🚀 Starting FastAPI server...
-📖 Docs: http://localhost:8000/docs
+📖 Docs: http://localhost:8001/docs
 INFO:     Started server process
 INFO:     Uvicorn running on http://0.0.0.0:8000
 ```
 
-Truy cập: http://localhost:8000 để test!
+Truy cập: http://localhost:8001 để test!

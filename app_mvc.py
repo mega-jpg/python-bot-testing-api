@@ -8,7 +8,7 @@ def create_app():
     app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key')
     
     # API Configuration
-    app.config['API_BASE_URL'] = 'http://localhost:8000'
+    app.config['API_BASE_URL'] = 'http://localhost:8001'
     
     # Register Blueprints
     from blueprints.main import bp as main_bp

@@ -25,11 +25,11 @@ DATABASE_NAME=user_crud_db
 python main.py
 ```
 
-API sẽ chạy tại: http://localhost:8000
+API sẽ chạy tại: http://localhost:8001
 
-- **Docs**: http://localhost:8000/docs
-- **Healthcheck**: http://localhost:8000/health
-- **Test MongoDB**: http://localhost:8000/test-db
+- **Docs**: http://localhost:8001/docs
+- **Healthcheck**: http://localhost:8001/health
+- **Test MongoDB**: http://localhost:8001/test-db
 
 ### 4. Chạy Frontend Web Interface
 
@@ -118,7 +118,7 @@ kjc-python-bot-testing-api/
 - Kiểm tra file `.env` có đúng connection string không
 
 ### Frontend không kết nối được API
-- Đảm bảo API backend đã chạy tại http://localhost:8000
+- Đảm bảo API backend đã chạy tại http://localhost:8001
 - Kiểm tra CORS nếu có lỗi cross-origin
 
 ### Dependencies lỗi
@@ -128,7 +128,7 @@ kjc-python-bot-testing-api/
 ## 🎉 Demo
 
 1. Chạy server: `python main.py`
-2. Truy cập http://localhost:8000
+2. Truy cập http://localhost:8001
 3. Thử các chức năng CRUD với users!
 
 ## 📝 Notes
