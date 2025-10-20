@@ -48,8 +48,6 @@ def delete_user(username):
         return {"error": str(e)}, 500
 
 if __name__ == '__main__':
-    print("🚀 Starting User CRUD Web Interface...")
-    print("📖 Frontend: http://localhost:5000")
-    print("🔧 Backend API: http://localhost:8000")
-    print("💡 Make sure your FastAPI server is running!")
+    print("🚀 Starting KJC Testing API Event...")
+    print("📖 Frontend: http://localhost:8000")
     app.run(debug=True, port=5000)

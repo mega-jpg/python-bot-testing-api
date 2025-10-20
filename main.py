@@ -1,47 +1,77 @@
 """
-FastAPI Server - Cách hiện đại và nhanh nhất
+FastAPI Server - Modern Full-Stack Application
+Serves both API and Static Frontend
 """
 
 import warnings
 warnings.filterwarnings("ignore", message=".*Pydantic V1 functionality.*")
-from fastapi import FastAPI, HTTPException, status
+from fastapi import FastAPI, HTTPException, status, Request
 from fastapi.encoders import jsonable_encoder
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, HTMLResponse
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
 import uvicorn
 from pymongo import MongoClient
 from datetime import datetime
 import os
 from dotenv import load_dotenv
 from typing import List, Dict
+from pathlib import Path
 
 # Load environment variables
 load_dotenv()
 
+# Load config
+from config import settings
+
 # MongoDB helpers
 def get_db():
-    mongodb_url = os.getenv("MONGODB_URL")
-    db_name = os.getenv("MONGODB_DATABASE", "kjc-group-staging")
-    client = MongoClient(mongodb_url, serverSelectionTimeoutMS=5000)
-    return client[db_name]
+    client = MongoClient(settings.MONGODB_URL, serverSelectionTimeoutMS=5000)
+    return client[settings.MONGODB_DATABASE]
 
-# Tạo FastAPI app
+# Create FastAPI app with proper config
 app = FastAPI(
-    title="My Python Server",
-    description="Server Python đơn giản với FastAPI",
-    version="1.0.0"
+    title=settings.APP_NAME,
+    description=settings.APP_DESCRIPTION,
+    version=settings.APP_VERSION
 )
 
-# Route cơ bản
-@app.get("/")
-async def root():
-    return {"message": "KJC Python Server API running!"}
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.CORS_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-@app.get("/health")
+# Mount static files
+app.mount("/static", StaticFiles(directory=str(settings.STATIC_DIR)), name="static")
+
+# Templates
+templates = Jinja2Templates(directory=str(settings.TEMPLATES_DIR))
+
+# Frontend routes
+@app.get("/", response_class=HTMLResponse)
+async def frontend_home(request: Request):
+    """Serve the main frontend application"""
+    return templates.TemplateResponse("crud_interface.html", {"request": request})
+
+@app.get("/health", response_class=JSONResponse)
 async def health_check():
-    return {"status": "healthy", "server": "running"}
+    """API Health check"""
+    return {"status": "healthy", "server": "FastAPI + Static Frontend"}
+
+# Additional API Routes
+@app.get("/api/info")
+async def api_info():
+    """Get API information"""
+    return {"message": "KJC Python Server API running!", "version": "2.0.0", "type": "FastAPI + Static"}
 
 @app.get("/api/data")
 async def get_data():
+    """Sample data endpoint"""
     return {
         "data": ["item1", "item2", "item3"],
         "count": 3
@@ -85,16 +115,20 @@ async def test_mongodb():
 
 
 
-# Import user routes
-from user_routes import router as user_router
-app.include_router(user_router)
+# Import botnet routes
+from botnet_routes import router as botnet_router
+app.include_router(botnet_router, prefix="/api", tags=["API"])
 
-# Chạy server
+# Development server
 if __name__ == "__main__":
-    print("🚀 Starting FastAPI server...")
-    print("📖 Docs: http://localhost:8000/docs")
+    print(f"🚀 Starting {settings.APP_NAME} v{settings.APP_VERSION}")
+    print(f"🌐 Frontend: http://localhost:{settings.PORT}")  
+    print(f"📖 API Docs: http://localhost:{settings.PORT}/docs")
+    print(f"🔗 ReDoc: http://localhost:{settings.PORT}/redoc")
+    
     uvicorn.run(
-        app, 
-        host="0.0.0.0",  # Cho phép truy cập từ bên ngoài
-        port=8000        # Port server
+        "main:app", 
+        host=settings.HOST,
+        port=settings.PORT,
+        reload=settings.DEBUG
     )

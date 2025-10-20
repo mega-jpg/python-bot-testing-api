@@ -1,6 +1,6 @@
-# User CRUD API với Frontend
+# KJC Testing API Event
 
-Dự án API đơn giản với FastAPI và MongoDB, kèm theo giao diện web để quản lý users.
+Dự án Testing API đơn giản với FastAPI, Flask và MongoDB, kèm theo giao diện web để quản lý users tham gia event.
 
 ## 🚀 Cài đặt và Chạy
 
@@ -55,11 +55,19 @@ Frontend sẽ chạy tại: http://localhost:5000
 
 ```json
 {
-  "username": "john_doe",
-  "email": "john@example.com",
-  "age": 25,
-  "city": "Ha Noi",
-  "phone": "0123456789"
+  "username": "xaclo89",
+  "password": "$2b$10$gMmnRmp0hrNGY.Q6lBCdguLaBvlzoUEUMh7yLOcAX3ZYQo7VsmlYG",
+  "phone": "0961737854",
+  "type": "user",
+  "status": "active",
+  "avatarUrl": "",
+  "point": 0,
+  "totalPoint": 0,
+  "levelId": "689467ff8dc2b0f9b7796e93",
+  "externalVerifyHistoryIds": [],
+  "isVerifired": false,
+  "createdAt": "2025-10-12T14:02:55.555Z",
+  "updatedAt": "2025-10-12T14:02:55.555Z"
 }
 ```
 
@@ -67,9 +75,7 @@ Frontend sẽ chạy tại: http://localhost:5000
 
 Frontend cung cấp 4 tab chính:
 
-1. **📋 List Users**: Xem danh sách tất cả users
 2. **➕ Create User**: Tạo user mới
-3. **✏️ Update User**: Cập nhật thông tin user
 4. **🗑️ Delete User**: Xóa user
 
 ## 🔧 Cấu trúc Dự án
@@ -77,7 +83,7 @@ Frontend cung cấp 4 tab chính:
 ```
 kjc-python-bot-testing-api/
 ├── main.py                          # FastAPI application chính
-├── user_routes.py                   # CRUD routes cho users
+├── botnet_routes.py                 # Botnet routes (no user CRUD)
 ├── front-end-app.py                # Flask frontend interface
 ├── templates/
 │   └── crud_interface.html          # HTML template cho frontend
@@ -121,10 +127,9 @@ kjc-python-bot-testing-api/
 
 ## 🎉 Demo
 
-1. Chạy backend: `python main.py`
-2. Chạy frontend: `python front-end-app.py`
-3. Truy cập http://localhost:5000
-4. Thử các chức năng CRUD với users!
+1. Chạy server: `python main.py`
+2. Truy cập http://localhost:8000
+3. Thử các chức năng CRUD với users!
 
 ## 📝 Notes
 
