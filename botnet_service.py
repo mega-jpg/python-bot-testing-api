@@ -14,6 +14,25 @@ import random
 import base64
 import websockets
 import os
+import requests
+
+# --- Telegram Notify ---
+def send_telegram_notify(message: str):
+    token = os.getenv('TELEGRAM_BOT_TOKEN')
+    chat_id = os.getenv('TELEGRAM_CHAT_ID')
+    if not token or not chat_id:
+        print('[Telegram Notify] Missing TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID')
+        return
+    url = f'https://api.telegram.org/bot{token}/sendMessage'
+    payload = {'chat_id': chat_id, 'text': message, 'parse_mode': 'HTML'}
+    try:
+        resp = requests.post(url, data=payload, timeout=10)
+        if resp.status_code == 200:
+            print('[Telegram Notify] Sent successfully')
+        else:
+            print(f'[Telegram Notify] Failed: {resp.text}')
+    except Exception as e:
+        print(f'[Telegram Notify] Error: {e}')
 
 
 async def get_user_by_username_async(username: str) -> Dict:
@@ -968,6 +987,26 @@ class BotBrowser:
 
 
 class BotnetService:
+    def start_sjc_cronjob_thread(self):
+        """Start a background thread to run scrape_sjc every 10 seconds (safe for FastAPI)."""
+        import threading, asyncio, time
+        if hasattr(self, '_sjc_cronjob_thread') and self._sjc_cronjob_thread and self._sjc_cronjob_thread.is_alive():
+            print("[SJC Cronjob] Cronjob thread already running.")
+            return
+        print("[SJC Cronjob] Starting cronjob thread...")
+        def cronjob():
+            print("[SJC Cronjob] Cronjob thread running.")
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            while True:
+                try:
+                    print("[SJC Cronjob] Calling scrape_sjc from cronjob thread.")
+                    loop.run_until_complete(self.scrape_sjc())
+                except Exception as e:
+                    print(f"[SJC Cronjob] Error: {e}")
+                time.sleep(10)
+        self._sjc_cronjob_thread = threading.Thread(target=cronjob, daemon=True)
+        self._sjc_cronjob_thread.start()
     """
     🚀 Optimized Botnet Service with async HTTP client
     Supports high-concurrency operations (up to 5000+ bots)
@@ -1289,6 +1328,7 @@ class BotnetService:
     async def scrape_sjc(self) -> Dict:
         """Crawl SJC gold price from webgia.com and return status via backend logs"""
         try:
+            print(f"[SJC] scrape_sjc called. (thread: {threading.current_thread().name})")
             print("🔄 Starting SJC price scraping from webgia.com...")
 
             # Use Selenium for JavaScript-rendered content
@@ -1353,17 +1393,20 @@ class BotnetService:
                 # (Bỏ đoạn này để không trả về các giá trị không liên quan)
 
                 # --- Bổ sung: Tìm "Vàng SJC 0.5 chỉ, 1 chỉ, 2 chỉ" và lấy giá kế bên ---
+
                 special_label = "Vàng SJC 0.5 chỉ, 1 chỉ, 2 chỉ"
-                special_value = None
-                # Tìm trong toàn bộ HTML (có thể là bảng hoặc text liền kề)
+                special_mua = None
+                special_ban = None
                 idx = html_content.find(special_label)
                 if idx != -1:
-                    # Lấy phần sau label, tìm số đầu tiên (giá)
-                    after = html_content[idx + len(special_label):idx + len(special_label) + 100]
-                    match = re.search(r'(\d{1,3}(?:[.,]\d{3})+(?:[.,]\d+)?)', after)
-                    if match:
-                        special_value = match.group(1)
-                        print(f"🔎 Found special SJC value: {special_value}")
+                    # Lấy phần sau label, tìm 2 số đầu tiên (giá Mua, Bán)
+                    after = html_content[idx + len(special_label):idx + len(special_label) + 200]
+                    matches = re.findall(r'(\d{1,3}(?:[.,]\d{3})+(?:[.,]\d+)?)', after)
+                    if matches:
+                        special_mua = matches[0]
+                        if len(matches) > 1:
+                            special_ban = matches[1]
+                        print(f"🔎 Found SJC 0.5 chỉ, 1 chỉ, 2 chỉ - Mua: {special_mua}, Bán: {special_ban}")
 
                 result = {
                     'success': True,
@@ -1372,13 +1415,26 @@ class BotnetService:
                     'prices_found': len(prices_found),
                     'prices': prices_found,
                     'timestamp': time.time(),
-                    'sjc_05_1_2_chi': special_value
+                    'sjc_05_1_2_chi_mua': special_mua,
+                    'sjc_05_1_2_chi_ban': special_ban
                 }
 
                 print(f"✅ Scraping completed successfully!")
                 print(f"📊 Found {len(prices_found)} price entries")
-                if special_value:
-                    print(f"💡 Vàng SJC 0.5 chỉ, 1 chỉ, 2 chỉ: {special_value}")
+                if special_mua or special_ban:
+                    print(f"💡 Vàng SJC 0.5 chỉ, 1 chỉ, 2 chỉ:\nMua: {special_mua}\nBán: {special_ban}")
+
+                # --- Gửi notify Telegram nếu có giá ---
+                from datetime import datetime
+                notify_msg = f"<b>Giá vàng SJC LOẠI 0.5 chỉ, 1 chỉ, 2 chỉ</b>\n\n"
+                if special_mua:
+                    notify_msg += f"Ngày: {datetime.now().strftime('%d/%m/%Y')}\n\n"
+                    notify_msg += f"🔵 Mua: <b>{special_mua}</b>\n\n"
+                if special_ban:
+                    notify_msg += f"🔴 Bán: <b>{special_ban}</b>\n\n"
+                if special_mua or special_ban:
+                    send_telegram_notify(notify_msg)
+
                 for i, price in enumerate(prices_found[:3]):  # Log first 3 prices
                     print(f"💰 Price {i+1}: {price['price']} - {price['context']}")
 
@@ -1408,12 +1464,31 @@ class BotnetService:
         await self.close()
 
 
-# Singleton instance
+
+# --- FastAPI endpoint for /api/scrape-sjc ---
+from fastapi import FastAPI
+from fastapi.responses import JSONResponse
+import threading
+
+app = FastAPI()
+
 _botnet_service = None
+_cronjob_started = False
 
 def get_botnet_service() -> BotnetService:
-    """Get singleton botnet service instance"""
     global _botnet_service
     if _botnet_service is None:
         _botnet_service = BotnetService()
     return _botnet_service
+
+@app.post("/api/scrape-sjc")
+async def api_scrape_sjc():
+    global _cronjob_started
+    service = get_botnet_service()
+    # Start cronjob only once
+    if not _cronjob_started:
+        service.start_sjc_cronjob_thread()
+        _cronjob_started = True
+    # Run scrape_sjc once immediately
+    result = await service.scrape_sjc()
+    return JSONResponse(content=result)

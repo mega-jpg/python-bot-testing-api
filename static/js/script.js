@@ -86,9 +86,16 @@ async function runBotnet() {
                 }
             }
 
-            // Hiển thị giá trị đặc biệt nếu có
-            if (result.data.sjc_05_1_2_chi) {
-                message += `<br>💡 <b>Vàng SJC 0.5 chỉ, 1 chỉ, 2 chỉ:</b> <span style="color:#007bff">${result.data.sjc_05_1_2_chi}</span>`;
+
+            // Hiển thị giá trị đặc biệt nếu có (Mua/Bán)
+            if (result.data.sjc_05_1_2_chi_mua || result.data.sjc_05_1_2_chi_ban) {
+                message += `<br>💡 <b>Vàng SJC 0.5 chỉ, 1 chỉ, 2 chỉ:</b><br>`;
+                if (result.data.sjc_05_1_2_chi_mua) {
+                    message += `Mua: <span style="color:#007bff">${result.data.sjc_05_1_2_chi_mua}</span><br>`;
+                }
+                if (result.data.sjc_05_1_2_chi_ban) {
+                    message += `Bán: <span style="color:#dc3545">${result.data.sjc_05_1_2_chi_ban}</span>`;
+                }
             }
 
             message += `<br>⏰ Scraped at: ${new Date(result.data.timestamp * 1000).toLocaleString()}`;
