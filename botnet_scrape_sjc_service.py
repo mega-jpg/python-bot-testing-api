@@ -80,7 +80,24 @@ class SJCScrapeService:
 
             print("🌐 Initializing Chrome WebDriver...")
             from selenium.webdriver.chrome.service import Service as ChromeService
-            service = ChromeService(ChromeDriverManager().install())
+            import shutil
+            
+            # Use system chromedriver in Replit environment
+            chromedriver_path = shutil.which('chromedriver')
+            if chromedriver_path:
+                print(f"Using system chromedriver: {chromedriver_path}")
+                service = ChromeService(executable_path=chromedriver_path)
+            else:
+                # Fallback to ChromeDriverManager if not in Replit
+                from webdriver_manager.chrome import ChromeDriverManager
+                service = ChromeService(ChromeDriverManager().install())
+            
+            # Use system chromium binary
+            chromium_path = shutil.which('chromium')
+            if chromium_path:
+                options.binary_location = chromium_path
+                print(f"Using system chromium: {chromium_path}")
+            
             driver = webdriver.Chrome(service=service, options=options)
 
             try:

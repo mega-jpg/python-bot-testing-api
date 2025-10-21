@@ -59,7 +59,7 @@ async function runBotnet() {
 
     try {
         // Always call the absolute API endpoint
-        const response = await fetch('http://localhost:5000/api/scrape-sjc', {
+        const response = await fetch('/api/scrape-sjc', {
             method: 'GET',
             headers: {
                 'Content-Type': 'application/json'
