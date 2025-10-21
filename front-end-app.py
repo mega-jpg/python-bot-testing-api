@@ -7,7 +7,7 @@ from flask import Flask, render_template, request, jsonify
 import requests
 
 app = Flask(__name__)
-API_URL = "http://localhost:8001/users"
+API_URL = "http://localhost:5000/users"
 
 # API proxy routes
 @app.route('/')
