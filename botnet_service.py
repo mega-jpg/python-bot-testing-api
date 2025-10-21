@@ -16,24 +16,7 @@ import websockets
 import os
 import requests
 
-# --- Telegram Notify ---
-def send_telegram_notify(message: str):
-    token = os.getenv('TELEGRAM_BOT_TOKEN')
-    chat_id = os.getenv('TELEGRAM_CHAT_ID')
-    if not token or not chat_id:
-        print('[Telegram Notify] Missing TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID')
-        return
-    url = f'https://api.telegram.org/bot{token}/sendMessage'
-    payload = {'chat_id': chat_id, 'text': message, 'parse_mode': 'HTML'}
-    try:
-        resp = requests.post(url, data=payload, timeout=10)
-        if resp.status_code == 200:
-            print('[Telegram Notify] Sent successfully')
-        else:
-            print(f'[Telegram Notify] Failed: {resp.text}')
-    except Exception as e:
-        print(f'[Telegram Notify] Error: {e}')
-
+from botnet_scrape_sjc_service import SJCScrapeService
 
 async def get_user_by_username_async(username: str) -> Dict:
     """Get user by username - Direct database access to avoid circular import"""
@@ -987,26 +970,6 @@ class BotBrowser:
 
 
 class BotnetService:
-    def start_sjc_cronjob_thread(self):
-        """Start a background thread to run scrape_sjc every 10 seconds (safe for FastAPI)."""
-        import threading, asyncio, time
-        if hasattr(self, '_sjc_cronjob_thread') and self._sjc_cronjob_thread and self._sjc_cronjob_thread.is_alive():
-            print("[SJC Cronjob] Cronjob thread already running.")
-            return
-        print("[SJC Cronjob] Starting cronjob thread...")
-        def cronjob():
-            print("[SJC Cronjob] Cronjob thread running.")
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            while True:
-                try:
-                    print("[SJC Cronjob] Calling scrape_sjc from cronjob thread.")
-                    loop.run_until_complete(self.scrape_sjc())
-                except Exception as e:
-                    print(f"[SJC Cronjob] Error: {e}")
-                time.sleep(10)
-        self._sjc_cronjob_thread = threading.Thread(target=cronjob, daemon=True)
-        self._sjc_cronjob_thread.start()
     """
     🚀 Optimized Botnet Service with async HTTP client
     Supports high-concurrency operations (up to 5000+ bots)
@@ -1060,114 +1023,9 @@ class BotnetService:
             'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/121.0',
             'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Safari/605.1.15'
         ]
-
-    async def manage_bot_session(self, username: str, password: str, app_id: str) -> Dict:
-        """
-        🌐 Manage bot browser session (create/reuse browser + handle login)
-        Each call creates or reuses a browser instance for the bot
         
-        Args:
-            username: Bot username
-            password: Bot password  
-            app_id: Application ID
-            
-        Returns:
-            Dict with login result and browser state
-        """
-        
-        # Validate required parameters
-        if not username or not password or not app_id:
-            raise HTTPException(
-                status_code=400, 
-                detail="Missing required parameters: username, password, appId"
-            )
-        
-        # Use semaphore to limit concurrent requests (NO I/O BLOCKING)
-        async with self.semaphore:
-            start_time = time.time()
-            self.performance_stats["current_concurrent"] += 1
-            self.performance_stats["concurrent_peak"] = max(
-                self.performance_stats["concurrent_peak"], 
-                self.performance_stats["current_concurrent"]
-            )
-            
-            # Check if bot browser already exists (like reopening existing browser tab)
-            if username in self.active_bots:
-                print(f"🔄 Reusing existing browser for bot: {username}")
-                bot_browser = self.active_bots[username]
-                
-                # Check if already logged in
-                if bot_browser.session_state["is_logged_in"]:
-                    # 🔑 Always get fresh auth code even for reused sessions
-                    auth_code_result = await bot_browser.get_auth_code(app_id)
-                    
-                    session_info = await bot_browser.get_session_info()
-                    
-                    if auth_code_result.get("success"):
-                        # Use fresh auth code
-                        auth_code = auth_code_result["authCode"]
-                        print(f"✅ Bot {username}: Fresh auth code retrieved for reused session!")
-                    else:
-                        # Fallback to stored auth code
-                        auth_code = bot_browser.session_state["auth_code"]
-                        print(f"⚠️ Bot {username}: Using stored auth code for reused session")
-                    
-                    return {
-                        "success": True,
-                        "message": f"Bot {username} already logged in (reusing session)!",
-                        "username": username,
-                        "accessToken": bot_browser.session_state["access_token"],
-                        "authCode": auth_code,
-                        "browser_state": session_info,
-                        "session_reused": True
-                    }
-            else:
-                # Create new browser instance (like opening new browser)
-                print(f"🌐 Creating new browser instance for bot: {username}")
-                bot_browser = BotBrowser(username, self.api_url, self.headers)
-                self.active_bots[username] = bot_browser
-            
-            # Perform browser-like login
-            result = await bot_browser.navigate_and_login(password, app_id)
-            
-            # Add browser metadata to result
-            if result.get("success"):
-                # 🔑 Call auth-code API after successful login
-                auth_code_result = await bot_browser.get_auth_code(app_id)
-                
-                if auth_code_result.get("success"):
-                    # Update result with fresh auth code
-                    result["authCode"] = auth_code_result["authCode"]
-                    print(f"✅ Bot {username}: Auth code updated successfully!")
-                    
-                    # Directly call WebSocket connection (skip sync user)
-                    ws_result = await bot_browser.ws_connect(result["authCode"], app_id)
-                    result["ws_result"] = ws_result
-                    if ws_result.get("success"):
-                        print(f"✅ Bot {username}: WebSocket connection established successfully!")
-                    else:
-                        print(f"⚠️ Bot {username}: WebSocket connection failed: {ws_result.get('message', 'Unknown error')}")
-                else:
-                    # Log auth code failure but don't fail the whole login
-                    print(f"⚠️ Bot {username}: Auth code retrieval failed: {auth_code_result.get('message', 'Unknown error')}")
-                    # Keep original auth code from login if available
-                
-                result["session_reused"] = False
-                result["total_active_browsers"] = len(self.active_bots)
-            else:
-                # If login failed multiple times, close and remove browser
-                if bot_browser.session_state["login_attempts"] >= 3:
-                    print(f"🗑️ Removing browser for bot {username} after {bot_browser.session_state['login_attempts']} failed attempts")
-                    await bot_browser.close_browser()
-                    if username in self.active_bots:
-                        del self.active_bots[username]
-            
-            # Update performance stats (non-blocking)
-            end_time = time.time()
-            self.performance_stats["current_concurrent"] -= 1
-            self.performance_stats["total_requests"] += 1
-            
-            return result
+        # SJC scraping service
+        self.sjc_service = SJCScrapeService()
 
     async def manage_bulk_bot_sessions(self, prefix: str, password: str, app_id: str, amount: int) -> Dict:
         """
@@ -1325,133 +1183,13 @@ class BotnetService:
         self.active_bots.clear()
         print("✅ All browsers closed successfully")
     
+    def start_sjc_cronjob_thread(self):
+        """Start SJC cronjob thread"""
+        self.sjc_service.start_sjc_cronjob_thread()
+    
     async def scrape_sjc(self) -> Dict:
-        """Crawl SJC gold price from webgia.com and return status via backend logs"""
-        try:
-            print(f"[SJC] scrape_sjc called. (thread: {threading.current_thread().name})")
-            print("🔄 Starting SJC price scraping from webgia.com...")
-
-            # Use Selenium for JavaScript-rendered content
-            from selenium import webdriver
-            from selenium.webdriver.chrome.options import Options
-            from selenium.webdriver.common.by import By
-            from selenium.webdriver.support.ui import WebDriverWait
-            from selenium.webdriver.support import expected_conditions as EC
-            from webdriver_manager.chrome import ChromeDriverManager
-            from parsel import Selector
-
-            # Setup Chrome options
-            options = Options()
-            options.add_argument('--headless')
-            options.add_argument('--no-sandbox')
-            options.add_argument('--disable-dev-shm-usage')
-            options.add_argument('--window-size=1920,1080')
-            options.add_argument('--disable-gpu')
-
-            print("🌐 Initializing Chrome WebDriver...")
-            from selenium.webdriver.chrome.service import Service as ChromeService
-            service = ChromeService(ChromeDriverManager().install())
-            driver = webdriver.Chrome(service=service, options=options)
-
-            try:
-                url = "https://webgia.com/gia-vang/sjc/"
-                print(f"📡 Navigating to {url}")
-                driver.get(url)
-
-                # Wait for page to load
-                WebDriverWait(driver, 10).until(
-                    EC.presence_of_element_located((By.TAG_NAME, 'body'))
-                )
-
-                print("✅ Page loaded successfully")
-                html_content = driver.page_source
-
-                # Parse with parsel
-                selector = Selector(text=html_content)
-                title = selector.css('title::text').get() or 'Unknown'
-
-                print(f"📄 Page title: {title}")
-
-                # Extract SJC prices - look for price patterns
-                import re
-                price_pattern = re.compile(r'(\d{1,3}(?:[.,]\d{3})+(?:[.,]\d+)?)')
-
-                # Find all text containing SJC
-                sjc_elements = selector.xpath("//*[contains(translate(text(),'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),'sjc')]")
-
-                prices_found = []
-                for element in sjc_elements[:10]:  # Limit to first 10 matches
-                    text = ' '.join([t.strip() for t in element.xpath('.//text()').getall() if t.strip()])
-                    matches = price_pattern.findall(text)
-                    for match in matches:
-                        prices_found.append({
-                            'context': text[:100] + '...' if len(text) > 100 else text,
-                            'price': match
-                        })
-
-                # Không trả về các giá trị 'General price pattern' nếu không tìm thấy SJC-specific
-                # (Bỏ đoạn này để không trả về các giá trị không liên quan)
-
-                # --- Bổ sung: Tìm "Vàng SJC 0.5 chỉ, 1 chỉ, 2 chỉ" và lấy giá kế bên ---
-
-                special_label = "Vàng SJC 0.5 chỉ, 1 chỉ, 2 chỉ"
-                special_mua = None
-                special_ban = None
-                idx = html_content.find(special_label)
-                if idx != -1:
-                    # Lấy phần sau label, tìm 2 số đầu tiên (giá Mua, Bán)
-                    after = html_content[idx + len(special_label):idx + len(special_label) + 200]
-                    matches = re.findall(r'(\d{1,3}(?:[.,]\d{3})+(?:[.,]\d+)?)', after)
-                    if matches:
-                        special_mua = matches[0]
-                        if len(matches) > 1:
-                            special_ban = matches[1]
-                        print(f"🔎 Found SJC 0.5 chỉ, 1 chỉ, 2 chỉ - Mua: {special_mua}, Bán: {special_ban}")
-
-                result = {
-                    'success': True,
-                    'url': url,
-                    'title': title,
-                    'prices_found': len(prices_found),
-                    'prices': prices_found,
-                    'timestamp': time.time(),
-                    'sjc_05_1_2_chi_mua': special_mua,
-                    'sjc_05_1_2_chi_ban': special_ban
-                }
-
-                print(f"✅ Scraping completed successfully!")
-                print(f"📊 Found {len(prices_found)} price entries")
-                if special_mua or special_ban:
-                    print(f"💡 Vàng SJC 0.5 chỉ, 1 chỉ, 2 chỉ:\nMua: {special_mua}\nBán: {special_ban}")
-
-                # --- Gửi notify Telegram nếu có giá ---
-                from datetime import datetime
-                notify_msg = f"<b>Giá vàng SJC LOẠI 0.5 chỉ, 1 chỉ, 2 chỉ</b>\n\n"
-                if special_mua:
-                    notify_msg += f"Ngày: {datetime.now().strftime('%d/%m/%Y')}\n\n"
-                    notify_msg += f"🔵 Mua: <b>{special_mua}</b>\n\n"
-                if special_ban:
-                    notify_msg += f"🔴 Bán: <b>{special_ban}</b>\n\n"
-                if special_mua or special_ban:
-                    send_telegram_notify(notify_msg)
-
-                for i, price in enumerate(prices_found[:3]):  # Log first 3 prices
-                    print(f"💰 Price {i+1}: {price['price']} - {price['context']}")
-
-                return result
-
-            finally:
-                driver.quit()
-                print("🧹 Chrome driver closed")
-
-        except Exception as e:
-            error_msg = f"❌ SJC scraping failed: {str(e)}"
-            print(error_msg)
-            return {
-                'success': False,
-                'error': str(e),
-                'timestamp': time.time()
-            }
+        """Scrape SJC gold prices"""
+        return await self.sjc_service.scrape_sjc()
     
     async def close(self):
         """Close all browser instances when service shuts down"""
@@ -1476,9 +1214,13 @@ _botnet_service = None
 _cronjob_started = False
 
 def get_botnet_service() -> BotnetService:
-    global _botnet_service
+    global _botnet_service, _cronjob_started
     if _botnet_service is None:
         _botnet_service = BotnetService()
+    # Start cronjob only once per process
+    if not _cronjob_started:
+        _botnet_service.start_sjc_cronjob_thread()
+        _cronjob_started = True
     return _botnet_service
 
 @app.post("/api/scrape-sjc")

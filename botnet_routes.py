@@ -32,7 +32,6 @@ async def scrape_sjc():
     try:
         botnet_service = get_botnet_service()
         result = await botnet_service.scrape_sjc()
-        
         if result.get("success"):
             return {
                 "message": "SJC scraping completed successfully",
